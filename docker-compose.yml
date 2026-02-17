@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: better_auth
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d better_auth"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Override for containers: connect to the db service name
+      DATABASE_URL: postgres://postgres:postgres@db:5432/better_auth
+      # This is the URL you visit from your browser
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NODE_ENV: development
+      CI: "true"
+      HUSKY: "0"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - app_node_modules:/app/node_modules
+      - app_next_cache:/app/.next
+    # Ensure deps exist inside the node_modules volume, then run dev server
+    command: sh -c "pnpm install --no-frozen-lockfile --force && pnpm exec drizzle-kit push && pnpm exec next dev --turbopack --hostname 0.0.0.0 --port 3000"
+
+volumes:
+  db_data:
+  app_node_modules:
+  app_next_cache:
